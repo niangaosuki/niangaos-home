@@ -313,6 +313,12 @@
       max-width: 90%;
       max-height: 90%;
       animation: zoomIn 0.3s ease-out;
+      overflow: hidden;
+      cursor: grab;
+    }
+
+    .modal-content:active {
+      cursor: grabbing;
     }
 
     @keyframes zoomIn {
@@ -325,6 +331,54 @@
       height: auto;
       border-radius: 10px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      transition: transform 0.2s ease;
+      user-select: none;
+      -webkit-user-drag: none;
+    }
+
+    /* 缩放控制面板 */
+    .zoom-controls {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      padding: 10px 15px;
+      border-radius: 25px;
+      z-index: 1002;
+    }
+
+    .zoom-btn {
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      border-radius: 50%;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .zoom-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(1.1);
+    }
+
+    .zoom-info {
+      color: white;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      min-width: 50px;
+      justify-content: center;
     }
 
     .close {
@@ -476,8 +530,15 @@
   <!-- 全屏查看模态框 -->
   <div id="imageModal" class="modal">
     <span class="close" onclick="closeModal()">&times;</span>
-    <div class="modal-content">
+    <div class="modal-content" id="modalContent">
       <img id="modalImg">
+    </div>
+    <!-- 缩放控制面板 -->
+    <div class="zoom-controls" id="zoomControls">
+      <button class="zoom-btn" onclick="zoomOut()" title="缩小">−</button>
+      <div class="zoom-info" id="zoomInfo">100%</div>
+      <button class="zoom-btn" onclick="zoomIn()" title="放大">+</button>
+      <button class="zoom-btn" onclick="resetZoom()" title="重置">⟲</button>
     </div>
   </div>
 
@@ -508,6 +569,16 @@
       }
     }
 
+    // 图片缩放功能
+    let currentScale = 1;
+    let currentTranslateX = 0;
+    let currentTranslateY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let initialTranslateX = 0;
+    let initialTranslateY = 0;
+
     // 全屏查看功能
     function openModal(imgId) {
       const modal = document.getElementById('imageModal');
@@ -516,11 +587,216 @@
       
       modal.style.display = 'block';
       modalImg.src = img.src;
+      
+      // 重置缩放
+      resetZoom();
+      
+      // 添加缩放事件监听
+      addZoomEventListeners();
     }
 
     function closeModal() {
       const modal = document.getElementById('imageModal');
       modal.style.display = 'none';
+      
+      // 移除事件监听
+      removeZoomEventListeners();
+    }
+
+    // 缩放控制函数
+    function zoomIn() {
+      currentScale = Math.min(currentScale * 1.2, 5); // 最大5倍
+      updateImageTransform();
+      updateZoomInfo();
+    }
+
+    function zoomOut() {
+      currentScale = Math.max(currentScale / 1.2, 0.1); // 最小0.1倍
+      updateImageTransform();
+      updateZoomInfo();
+    }
+
+    function resetZoom() {
+      currentScale = 1;
+      currentTranslateX = 0;
+      currentTranslateY = 0;
+      updateImageTransform();
+      updateZoomInfo();
+    }
+
+    function updateImageTransform() {
+      const modalImg = document.getElementById('modalImg');
+      modalImg.style.transform = `scale(${currentScale}) translate(${currentTranslateX}px, ${currentTranslateY}px)`;
+    }
+
+    function updateZoomInfo() {
+      const zoomInfo = document.getElementById('zoomInfo');
+      zoomInfo.textContent = Math.round(currentScale * 100) + '%';
+    }
+
+    // 添加缩放事件监听器
+    function addZoomEventListeners() {
+      const modalContent = document.getElementById('modalContent');
+      const modalImg = document.getElementById('modalImg');
+      
+      // 鼠标滚轮缩放
+      modalContent.addEventListener('wheel', handleWheel, { passive: false });
+      
+      // 触摸缩放
+      modalContent.addEventListener('touchstart', handleTouchStart, { passive: false });
+      modalContent.addEventListener('touchmove', handleTouchMove, { passive: false });
+      modalContent.addEventListener('touchend', handleTouchEnd, { passive: false });
+      
+      // 鼠标拖拽
+      modalImg.addEventListener('mousedown', handleMouseDown);
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    // 移除事件监听器
+    function removeZoomEventListeners() {
+      const modalContent = document.getElementById('modalContent');
+      const modalImg = document.getElementById('modalImg');
+      
+      modalContent.removeEventListener('wheel', handleWheel);
+      modalContent.removeEventListener('touchstart', handleTouchStart);
+      modalContent.removeEventListener('touchmove', handleTouchMove);
+      modalContent.removeEventListener('touchend', handleTouchEnd);
+      modalImg.removeEventListener('mousedown', handleMouseDown);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    }
+
+    // 鼠标滚轮缩放
+    function handleWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newScale = Math.min(Math.max(currentScale * delta, 0.1), 5);
+      
+      if (newScale !== currentScale) {
+        // 以鼠标位置为中心缩放
+        const rect = e.currentTarget.getBoundingClientRect();
+        const centerX = e.clientX - rect.left - rect.width / 2;
+        const centerY = e.clientY - rect.top - rect.height / 2;
+        
+        const scaleRatio = newScale / currentScale;
+        currentTranslateX = centerX * (1 - scaleRatio) + currentTranslateX * scaleRatio;
+        currentTranslateY = centerY * (1 - scaleRatio) + currentTranslateY * scaleRatio;
+        
+        currentScale = newScale;
+        updateImageTransform();
+        updateZoomInfo();
+      }
+    }
+
+    // 触摸事件处理
+    let lastTouchDistance = 0;
+    let lastTouchCenterX = 0;
+    let lastTouchCenterY = 0;
+
+    function getTouchDistance(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getTouchCenter(touches) {
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2
+      };
+    }
+
+    function handleTouchStart(e) {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        lastTouchDistance = getTouchDistance(e.touches);
+        const center = getTouchCenter(e.touches);
+        lastTouchCenterX = center.x;
+        lastTouchCenterY = center.y;
+      } else if (e.touches.length === 1) {
+        // 单指拖拽
+        isDragging = true;
+        startX = e.touches[0].clientX;
+        startY = e.touches[0].clientY;
+        initialTranslateX = currentTranslateX;
+        initialTranslateY = currentTranslateY;
+      }
+    }
+
+    function handleTouchMove(e) {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        const distance = getTouchDistance(e.touches);
+        const center = getTouchCenter(e.touches);
+        
+        if (lastTouchDistance > 0) {
+          const scaleChange = distance / lastTouchDistance;
+          const newScale = Math.min(Math.max(currentScale * scaleChange, 0.1), 5);
+          
+          if (newScale !== currentScale) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const centerX = center.x - rect.left - rect.width / 2;
+            const centerY = center.y - rect.top - rect.height / 2;
+            
+            const scaleRatio = newScale / currentScale;
+            currentTranslateX = centerX * (1 - scaleRatio) + currentTranslateX * scaleRatio;
+            currentTranslateY = centerY * (1 - scaleRatio) + currentTranslateY * scaleRatio;
+            
+            currentScale = newScale;
+            updateImageTransform();
+            updateZoomInfo();
+          }
+        }
+        
+        lastTouchDistance = distance;
+        lastTouchCenterX = center.x;
+        lastTouchCenterY = center.y;
+      } else if (e.touches.length === 1 && isDragging && currentScale > 1) {
+        e.preventDefault();
+        const deltaX = e.touches[0].clientX - startX;
+        const deltaY = e.touches[0].clientY - startY;
+        
+        currentTranslateX = initialTranslateX + deltaX / currentScale;
+        currentTranslateY = initialTranslateY + deltaY / currentScale;
+        
+        updateImageTransform();
+      }
+    }
+
+    function handleTouchEnd(e) {
+      if (e.touches.length === 0) {
+        lastTouchDistance = 0;
+        isDragging = false;
+      }
+    }
+
+    // 鼠标拖拽事件处理
+    function handleMouseDown(e) {
+      if (currentScale > 1) {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        initialTranslateX = currentTranslateX;
+        initialTranslateY = currentTranslateY;
+        e.preventDefault();
+      }
+    }
+
+    function handleMouseMove(e) {
+      if (isDragging && currentScale > 1) {
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        
+        currentTranslateX = initialTranslateX + deltaX / currentScale;
+        currentTranslateY = initialTranslateY + deltaY / currentScale;
+        
+        updateImageTransform();
+      }
+    }
+
+    function handleMouseUp(e) {
+      isDragging = false;
     }
 
     // 平滑滚动
@@ -575,6 +851,13 @@
     // 点击模态框背景关闭
     document.getElementById('imageModal').addEventListener('click', function(e) {
       if (e.target === this) {
+        closeModal();
+      }
+    });
+
+    // ESC键关闭模态框
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && document.getElementById('imageModal').style.display === 'block') {
         closeModal();
       }
     });
