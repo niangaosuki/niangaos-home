@@ -524,7 +524,7 @@
   </section>
 
   <footer>
-    <p>© 2025 年糕suki. 保留所有权利. ✨ Made with ❤️</p>
+    <p>© 2025 年糕suki. 保留所有权利. ✨ Made with venti ❤️</p>
   </footer>
 
   <!-- 全屏查看模态框 -->
@@ -752,7 +752,7 @@
         lastTouchDistance = distance;
         lastTouchCenterX = center.x;
         lastTouchCenterY = center.y;
-      } else if (e.touches.length === 1 && isDragging && currentScale > 1) {
+      } else if (e.touches.length === 1 && isDragging) {
         e.preventDefault();
         const deltaX = e.touches[0].clientX - startX;
         const deltaY = e.touches[0].clientY - startY;
@@ -773,18 +773,16 @@
 
     // 鼠标拖拽事件处理
     function handleMouseDown(e) {
-      if (currentScale > 1) {
         isDragging = true;
         startX = e.clientX;
         startY = e.clientY;
         initialTranslateX = currentTranslateX;
         initialTranslateY = currentTranslateY;
         e.preventDefault();
-      }
     }
 
     function handleMouseMove(e) {
-      if (isDragging && currentScale > 1) {
+      if (isDragging) {
         const deltaX = e.clientX - startX;
         const deltaY = e.clientY - startY;
         
